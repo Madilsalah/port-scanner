@@ -1,40 +1,73 @@
-# port_scanner.py
+# advanced_port_scanner.py
 import socket
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-def scan_ports(target, ports):
-    open_ports = []  # List to store open ports
-    print(f"Scanning {target}...\n")
-    for port in ports:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.5)
-            result = sock.connect_ex((target, port))
-            if result == 0:
-                print(f"[+] Port {port} is open")
-                open_ports.append(port)  # Add open port to the list
-            sock.close()
-        except Exception as e:
-            print(f"[-] Error scanning port {port}: {e}")
-    print("\nScanning completed!")
+# Dictionary of common ports and services
+COMMON_SERVICES = {
+    21: "FTP",
+    22: "SSH",
+    23: "Telnet",
+    25: "SMTP",
+    53: "DNS",
+    80: "HTTP",
+    110: "POP3",
+    143: "IMAP",
+    443: "HTTPS",
+    3306: "MySQL",
+    3389: "RDP"
+}
+
+def scan_port(target, port):
+    """
+    Scans a single port to determine if it's open.
+    Returns the port number and service if open.
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex((target, port))
+        if result == 0:
+            service = COMMON_SERVICES.get(port, "Unknown Service")
+            return port, service
+        sock.close()
+    except Exception:
+        pass
+    return None
+
+def scan_ports(target, port_range):
+    """
+    Scans a range of ports on a target IP address using multi-threading.
+    """
+    open_ports = []
+    print(f"\nStarting scan on {target} for ports {port_range.start} to {port_range.stop - 1}...\n")
+    with ThreadPoolExecutor(max_workers=100) as executor:
+        futures = [executor.submit(scan_port, target, port) for port in port_range]
+        for future in futures:
+            result = future.result()
+            if result:
+                open_ports.append(result)
     return open_ports
 
 if __name__ == "__main__":
-    print("Simple Port Scanner\n")
+    print("Advanced Port Scanner\n")
     target_ip = input("Enter the target IP address: ")
-    ports = range(1, 1025)  # Scans the first 1024 ports
+    start_port = int(input("Enter the starting port (e.g., 1): "))
+    end_port = int(input("Enter the ending port (e.g., 1024): "))
+    
     start_time = datetime.now()
 
-    # Scan and get the list of open ports
+    # Scan ports
+    ports = range(start_port, end_port + 1)
     open_ports = scan_ports(target_ip, ports)
 
     end_time = datetime.now()
-    print(f"\nTime taken: {end_time - start_time}\n")
+    print(f"\nScan completed in {end_time - start_time}.\n")
 
-    # Display the summary of open ports
+    # Display the results
     if open_ports:
-        print("Summary of Open Ports:")
-        for port in open_ports:
-            print(f" - Port {port} is open")
+        print("Open Ports and Services Detected:")
+        for port, service in open_ports:
+            print(f" - Port {port} ({service}) is open")
     else:
         print("No open ports found.")
